@@ -20,23 +20,23 @@ app.use(cors());
 app.get("/", (req, res) => {
   res.send("Home Page");
 });
-// app.use("/admin/grabaciones/", grabacionesRouter);
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.use("/admin/grabaciones/", grabacionesRouter);
 
 // const PORT = process.env.PORT || 5000;
 
-// mongoose
-//   .connect(process.env.DATABASE_URL)
-//   .then(() => {
-//     app.listen(PORT, () => {
-//       console.log(`Server running on port ${PORT}`);
-//     });
-//   })
-//   .catch((err) => {
-//     console.log(err);
-//   });
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+// });
+
+const PORT = process.env.PORT || 5000;
+
+mongoose
+  .connect(process.env.DATABASE_URL)
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log(err);
+  });
