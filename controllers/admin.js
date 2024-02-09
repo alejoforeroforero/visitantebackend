@@ -1,79 +1,165 @@
-const bcrypt = require("bcryptjs");
-const { validationResult } = require("express-validator");
-const jwt = require("jsonwebtoken");
+const asyncHandler = require("express-async-handler");
 const Admin = require("../models/admin");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 
-const crearAdmin = async (req, res) => {
-  const errors = validationResult(req);
-
-  if (!errors.isEmpty()) {
-    res.json("hay errores en la creación");
-    return;
-  }
-
-  const { email, password } = req.body;
-
-  const adminDB = await Admin.findOne({ email: email });
-
-  if(adminDB){
-    res.json("El usuario ya existe");
-
-    return;
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 12);
-
-  const admin = new Admin({
-    email,
-    password:hashedPassword
-  });
-
-  try {
-    await admin.save();
-  } catch (error) {
-    console.log(error);
-  }
-
-  res.json(admin);
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "1d" });
 };
 
-const login = async(req, res)=>{
+const registerAdmin = asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body;
 
+  if (!name || !email || !password) {
+    res.status(400);
+    throw new Error("Please fill in all required fields");
+  }
+
+  if (password.length < 6) {
+    res.status(400);
+    throw new Error("Password must be up to 6 characters");
+  }
+
+  const adminExists = await Admin.findOne({ email });
+
+  if (adminExists) {
+    res.status(400);
+    throw new Error("Email has already been registered");
+  }
+
+  const admin = await Admin.create({
+    name,
+    email,
+    password,
+  });
+
+  if (admin) {
+    const token = generateToken(admin._id);
+
+    res.cookie("token", token, {
+      path: "/",
+      httpOnly: true,
+      expires: new Date(Date.now() + 1000 * 86400),
+      sameSite: "none",
+      secure: true,
+    });
+
+    const { _id, name, email, photo, phone, bio } = admin;
+
+    res.status(201).json({
+      _id,
+      name,
+      email,
+      photo,
+      phone,
+      bio,
+      token,
+    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid user data");
+  }
+});
+
+const loginAdmin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const usuarioDB = await Admin.findOne({ email: email });
-
-  if (!usuarioDB) {
-    res.json("No esiste el usuario");
-    return;
+  if (!email || !password) {
+    res.status(400);
+    throw new Error("Please add email and password");
   }
 
-  const passwordBueno = bcrypt.compare(password, usuarioDB.password);
+  const admin = await Admin.findOne({ email });
 
-  if (!passwordBueno) {
-    res.json("El password está mal");
-    return;
+  if (!admin) {
+    res.status(400);
+    throw new Error("User not found,  please signup");
   }
 
-  let token;
+  const passwordIsCorrect = await bcrypt.compare(password, admin.password);
 
-  try{
-    token = jwt.sign({ userId: usuarioDB._id }, "clave_secreta", {
-      expiresIn: "1h",
+  if (admin && passwordIsCorrect) {
+    const token = generateToken(admin._id);
+
+    res.cookie("token", token, {
+      path: "/",
+      httpOnly: true,
+      expires: new Date(Date.now() + 1000 * 86400),
+      sameSite: "none",
+      secure: true,
     });
-  }catch(error){
-    console.log(error);
-    return;
+
+    const { _id, name, email, photo, phone, bio } = admin;
+
+    res.status(200).json({
+      _id,
+      name,
+      email,
+      photo,
+      phone,
+      bio,
+      token,
+    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid email or password");
+  }
+});
+
+const logoutAdmin = asyncHandler(async (req, res) => {
+  res.cookie("token", "", {
+    path: "/",
+    httpOnly: true,
+    expires: new Date(0),
+    sameSite: "none",
+    secure: true,
+  });
+  return res.status(200).json({ message: "Successfully logout" });
+});
+
+const getAdmin = asyncHandler(async (req, res) => {
+  const admin = await Admin.findById(req.admin._id);
+
+  if (admin) {
+    const { _id, name, email, photo, phone, bio } = admin;
+
+    res.status(201).json({
+      _id,
+      name,
+      email,
+      photo,
+      phone,
+      bio,
+    });
+  }else{
+    res.status(400);
+    throw new Error("User not found");
+  }
+});
+
+const loginStatus = (req, res)=>{
+
+  console.log(req.cookies);
+
+  const token = req.cookies.token;
+
+  if(!token){
+    return res.josn(false)
   }
 
-  const adminData = {
-    id: usuarioDB._id,
-    email: usuarioDB.email,
-    token,
-  };
+  const verified = jwt.verify(token, process.env.JWT_SECRET);
 
-  res.json({ adminData });
+  if(verified){
+    return res.json(true)
+  }
+
+  return res.json(false)
 }
 
-exports.crearAdmin = crearAdmin;
-exports.login = login;
+module.exports = {
+  registerAdmin,
+  loginAdmin,
+  logoutAdmin,
+  getAdmin,
+  loginStatus
+};
