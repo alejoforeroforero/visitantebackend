@@ -5,9 +5,11 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const errorHandler = require("./middleware/errorMiddleware");
 const cookieParser = require('cookie-parser');
+const path = require('path');
 
 const grabacionesRouter = require("./routes/grabaciones");
 const adminRoute = require("./routes/admin")
+const musicianRoute = require("./routes/musicianRoute")
 
 
 const app = express();
@@ -20,8 +22,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors());
 
+app.use("/uploads", express.static(path.join(__dirname, "uploads")))
+
 // Routes Middleware
 app.use("/api/admin/", adminRoute);
+app.use("/api/musicians/", musicianRoute);
 
 // Error Middleware
 
